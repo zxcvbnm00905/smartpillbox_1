@@ -1,0 +1,16 @@
+Output/
+*.o
+*.crf
+*.d
+*.dep
+*.lnp
+*.axf
+*.hex
+*.htm
+*.map
+*.sct
+*.lst
+*.uvguix.*
+*.uvoptx
+JLink*
+*.bak
