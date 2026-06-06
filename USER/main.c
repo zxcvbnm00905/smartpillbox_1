@@ -4,8 +4,8 @@
  */
 #include "stm32f10x.h"
 #include "bsp_lcd.h"
-/*#include "bsp_touch.h"
-#include "bsp_rtc.h"*/
+#include "bsp_touch.h"
+#include "bsp_rtc.h"
 #include "bsp_led.h"
 #include "bsp_beep.h"
 #include "bsp_key.h"
@@ -37,12 +37,6 @@ static void SystemClock_Config(void)
 volatile uint32_t g_SysTickCount = 0;
 static void SysTick_Init(void) { SysTick_Config(SystemCoreClock / 1000); }
 void SysTick_Handler(void)     { g_SysTickCount++; }
-
-static void Delay_ms(uint32_t ms)
-{
-    uint32_t end = g_SysTickCount + ms;
-    while(g_SysTickCount < end);
-}
 
 static void ProcessTouch(void)
 {
@@ -93,7 +87,7 @@ int main(void)
 
     LCD_Init();
     Touch_Init();
-    RTC_Init();
+    RTC_Init();	
     LED_Init();
     BEEP_Init();
     Key_Init();
@@ -104,7 +98,6 @@ int main(void)
     g_CurTime.year = 2024; g_CurTime.month = 6; g_CurTime.day = 1;
     g_CurTime.hour = 7; g_CurTime.minute = 25; g_CurTime.second = 0;
     RTC_SetTime(&g_CurTime);
-
     g_PageDirty = 1;
 
     while(1) {

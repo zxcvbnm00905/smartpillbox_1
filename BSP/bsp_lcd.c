@@ -258,11 +258,15 @@ void LCD_ShowChar(uint16_t x,uint16_t y,char chr,uint16_t fg,uint16_t bg,uint8_t
     uint8_t cw=6,ch=12;
     LCD_SetWindow(x,y,x+cw-1,y+ch-1);
     for(uint8_t row=0;row<ch;row++){
-        uint8_t byte=Font_6x12[(uint8_t)chr-' '][row];
+        uint8_t b=Font_6x12[(uint8_t)chr-' '][row];
+        /* 硬件面板反向: bit2↔bit7, bit3↔bit6, bit4↔bit5 */
+        uint8_t rev=0;
+        if(b&0x80)rev|=0x04; if(b&0x40)rev|=0x08;
+        if(b&0x20)rev|=0x10; if(b&0x10)rev|=0x20;
+        if(b&0x08)rev|=0x40; if(b&0x04)rev|=0x80;
 
-        /* 字体反转扫描 — 修复镜像 */
         for(int8_t col=0; col<cw; col++)
-            LCD_WRITE_DATA((byte&(0x04<<col))?fg:bg);
+            LCD_WRITE_DATA((rev&(0x80>>col))?fg:bg);
     }
 }
 
@@ -275,9 +279,11 @@ void LCD_ShowChinese(uint16_t x,uint16_t y,const uint8_t*hz,uint16_t fg,uint16_t
     LCD_SetWindow(x,y,x+15,y+15);
     for(uint8_t row=0;row<16;row++){
         uint16_t rd=(buf[row*2]<<8)|buf[row*2+1];
+        /* 硬件面板反向: 翻转16bit */
+        uint16_t rv=0; uint8_t j;
+        for(j=0;j<16;j++) if(rd&(1<<j)) rv|=(0x8000>>j);
         
-        /* 字体反转扫描 */
         for(int8_t col=0; col<16; col++)
-            LCD_WRITE_DATA((rd&(0x0001<<col))?fg:bg);
+            LCD_WRITE_DATA((rv&(0x8000>>col))?fg:bg);
     }
 }

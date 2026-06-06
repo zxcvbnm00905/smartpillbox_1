@@ -28,26 +28,23 @@ void Key_Init(void)
  */
 uint8_t Key_Scan(void)
 {
-    static uint32_t lastTick1 = 0, lastTick2 = 0;
-    uint32_t now = 0;  /* 简化, 实际用systick */
-
-    /* KEY1: PA0 (WK_UP), 高电平按下 */
+    /* ??????????,??????? */
+    static uint8_t key1_state = 0; 
+    
+    /* KEY1: PA0 (??????) */
     if (KEY1_PRESSED()) {
-        /* 简化消抖: 这里用延时代替systick */
-        for (volatile uint32_t i = 0; i < 20000; i++);
-        if (KEY1_PRESSED()) {
-            while (KEY1_PRESSED());  /* 等待释放 */
-            return KEY1_DOWN;
+        if(key1_state == 0) {
+            key1_state = 1; // ????????
+            return KEY1_DOWN; // ??????????
         }
+    } else {
+        key1_state = 0; // ???????
     }
 
-    /* KEY2: PC13 (TAMPER), 低电平按下 */
+    /* KEY2: PC13 (??????) */
     if (KEY2_PRESSED()) {
-        for (volatile uint32_t i = 0; i < 20000; i++);
-        if (KEY2_PRESSED()) {
-            while (KEY2_PRESSED());
-            return KEY2_DOWN;
-        }
+        // ????,???????? key2_state
+        return KEY2_DOWN; 
     }
 
     return KEY_NONE;
