@@ -8,6 +8,7 @@
 #include "bsp_rtc.h"
 
 #define MED_NAME_LEN    16
+#define MED_DOSE_LEN    12
 #define MAX_MEDICINES   4
 
 typedef struct {
@@ -16,6 +17,7 @@ typedef struct {
     uint8_t  alarmMinute;
     uint8_t  enabled;
     uint8_t  taken;
+    char     dose[MED_DOSE_LEN];
 } Medicine;
 
 typedef enum {
@@ -26,6 +28,7 @@ typedef enum {
 
 void PillBox_Init(void);
 PillBox_State PillBox_GetState(void);
+uint8_t PillBox_GetTriggeredIndex(void);
 void PillBox_Process(void);
 
 Medicine* PillBox_GetMedicines(void);
@@ -35,6 +38,7 @@ void      PillBox_SetMedicine(uint8_t idx,const char*name,uint8_t hour,uint8_t m
 void PillBox_ConfirmTaken(void);
 void PillBox_Snooze(void);
 void PillBox_GetNextDoseString(char*buf);
+uint8_t PillBox_GetSnoozeRemaining(uint8_t *idx, uint16_t *remainMin);
 uint8_t PillBox_GetTakenCount(void);
 uint8_t PillBox_GetTotalEnabled(void);
 void PillBox_ResetDaily(void);

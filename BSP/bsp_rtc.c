@@ -14,32 +14,30 @@ static RTC_Alarm g_Alarms[MAX_ALARMS];
 /* ==================== RTC 初始化 ==================== */
 void RTC_Init(void)
 {
-    /* 使能 PWR 和 BKP 时钟 */
-    RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR | RCC_APB1Periph_BKP, ENABLE);
+    uint8_t needInit;
 
-    /* 允许访问备份域 */
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR | RCC_APB1Periph_BKP, ENABLE);
     PWR_BackupAccessCmd(ENABLE);
 
-    /* 复位备份域 */
-    BKP_DeInit();
+    needInit = (BKP_ReadBackupRegister(BKP_DR1) != 0x5050);
 
-    /* 使能 LSE (32.768kHz) */
-    RCC_LSEConfig(RCC_LSE_ON);
-    while (RCC_GetFlagStatus(RCC_FLAG_LSERDY) == RESET);
+    if (needInit) {
+        BKP_DeInit();
+        RCC_LSEConfig(RCC_LSE_ON);
+        while (RCC_GetFlagStatus(RCC_FLAG_LSERDY) == RESET);
 
-    /* 选择 LSE 为 RTC 时钟源 */
-    RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE);
-    RCC_RTCCLKCmd(ENABLE);
+        RCC_RTCCLKConfig(RCC_RTCCLKSource_LSE);
+        RCC_RTCCLKCmd(ENABLE);
 
-    /* 等待 RTC 寄存器同步 */
-    RTC_WaitForSynchro();
-    RTC_WaitForLastTask();
+        RTC_WaitForSynchro();
+        RTC_WaitForLastTask();
+        RTC_SetPrescaler(32767);
+        RTC_WaitForLastTask();
+    } else {
+        RTC_WaitForSynchro();
+        RTC_WaitForLastTask();
+    }
 
-    /* 设置预分频: 32768 - 1 = 32767 (1Hz) */
-    RTC_SetPrescaler(32767);
-    RTC_WaitForLastTask();
-
-    /* 初始化闹钟为空 */
     for (uint8_t i = 0; i < MAX_ALARMS; i++) {
         g_Alarms[i].hour    = 0;
         g_Alarms[i].minute  = 0;
@@ -47,7 +45,6 @@ void RTC_Init(void)
         sprintf(g_Alarms[i].label, "闹钟%d", i + 1);
     }
 }
-
 /* ==================== 时间设置/读取 ==================== */
 void RTC_SetTime(RTC_Time *time)
 {

@@ -28,23 +28,25 @@ void Key_Init(void)
  */
 uint8_t Key_Scan(void)
 {
-    /* ??????????,??????? */
-    static uint8_t key1_state = 0; 
-    
-    /* KEY1: PA0 (??????) */
+    static uint8_t key1_state = 0;
+    static uint8_t key2_state = 0;
+
     if (KEY1_PRESSED()) {
         if(key1_state == 0) {
-            key1_state = 1; // ????????
-            return KEY1_DOWN; // ??????????
+            key1_state = 1;
+            return KEY1_DOWN;
         }
     } else {
-        key1_state = 0; // ???????
+        key1_state = 0;
     }
 
-    /* KEY2: PC13 (??????) */
     if (KEY2_PRESSED()) {
-        // ????,???????? key2_state
-        return KEY2_DOWN; 
+        if(key2_state == 0) {
+            key2_state = 1;
+            return KEY2_DOWN;
+        }
+    } else {
+        key2_state = 0;
     }
 
     return KEY_NONE;

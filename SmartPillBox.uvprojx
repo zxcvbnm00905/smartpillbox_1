@@ -457,6 +457,11 @@
               <FileType>1</FileType>
               <FilePath>.\BSP\bsp_key.c</FilePath>
             </File>
+            <File>
+              <FileName>bsp_ir.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\BSP\bsp_ir.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
