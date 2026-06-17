@@ -4,6 +4,7 @@
  */
 
 #include "stm32f10x_it.h"
+#include "bsp_wifi.h"
 
 /* 外部声明的SysTick计数器 */
 extern volatile uint32_t g_SysTickCount;
@@ -80,7 +81,7 @@ void SPI1_IRQHandler(void)              {}
 void SPI2_IRQHandler(void)              {}
 void USART1_IRQHandler(void)            {}
 void USART2_IRQHandler(void)            {}
-void USART3_IRQHandler(void)            {}
+void USART3_IRQHandler(void)            { WiFi_IRQHandler(); }
 void EXTI15_10_IRQHandler(void)         {}
 void RTCAlarm_IRQHandler(void)          {}
 void USBWakeUp_IRQHandler(void)         {}

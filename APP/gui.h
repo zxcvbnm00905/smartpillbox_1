@@ -34,6 +34,8 @@ typedef enum {
 /* ==================== º¯ÊýÉùÃ÷ ==================== */
 void GUI_Init(void);
 GUI_Page GUI_GetPage(void);
+void GUI_SetWiFiOnline(uint8_t online);
+void GUI_ReturnHome(void);
 void GUI_ShowMainPage(RTC_Time *time);
 void GUI_ShowAlarmAlert(Medicine *med);
 void GUI_ShowMedSetting(Medicine *meds, uint8_t count, uint8_t selected);

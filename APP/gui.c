@@ -1,192 +1,530 @@
 /**
- * Smart Pill Box GUI - Original Landscape 320x240
+ * Smart Pill Box GUI - dynamic UI matched to target visual style
  */
 #include "gui.h"
 #include "bsp_lcd.h"
-#include "bsp_touch.h"
+#include "bsp_cfont.h"
+#include "bsp_extfont.h"
 #include <stdio.h>
 #include <string.h>
 
+#define UI_BG             0xF7DF
+#define UI_BAR            0x2C79
+#define UI_PRIMARY        0x2D9F
+#define UI_TEXT           0x18A8
+#define UI_MUTED          0x6B4D
+#define UI_BORDER         0xE73C
+#define UI_BUTTON_BORDER  0xBDF7
+#define UI_SOFT_BLUE      0xEF7F
+#define UI_TRACK          0xE71C
+#define UI_GREEN          0x05D0
+#define UI_GREEN_BG       0xEFBD
+#define UI_ORANGE         0xEA60
+#define UI_ORANGE_BG      0xFDDD
+
+#define UI_TXT_DAY "\xE6\x97\xA5"
+#define UI_TXT_ONE "\xE4\xB8\x80"
+#define UI_TXT_TWO "\xE4\xBA\x8C"
+#define UI_TXT_THREE "\xE4\xB8\x89"
+#define UI_TXT_FOUR "\xE5\x9B\x9B"
+#define UI_TXT_FIVE "\xE4\xBA\x94"
+#define UI_TXT_SIX "\xE5\x85\xAD"
+#define UI_TXT_MONTH "\xE6\x9C\x88"
+#define UI_TXT_WEEK "\xE5\x91\xA8"
+#define UI_TXT_WIFI_OK "\x57\x69\x46\x69\x20\x4F\x4B"
+#define UI_TXT_WIFI_WAIT "\x57\x69\x46\x69\x20\x2E\x2E\x2E"
+#define UI_TXT_NEXT_DOSE "\xE4\xB8\x8B\xE6\xAC\xA1\xE6\x9C\x8D\xE8\x8D\xAF"
+#define UI_TXT_GENERIC_MED "\xE8\x8D\xAF\xE5\x93\x81"
+#define UI_TXT_DOSE "\xE5\x89\x82\xE9\x87\x8F\x3A"
+#define UI_TXT_REMAIN "\xE8\xBF\x98\xE6\x9C\x89"
+#define UI_TXT_STATUS "\xE7\x8A\xB6\xE6\x80\x81"
+#define UI_TXT_TAKEN_DONE "\xE5\xB7\xB2\xE6\x9C\x8D\xE8\x8D\xAF"
+#define UI_TXT_RECORDED "\xE5\xB7\xB2\xE8\xAE\xB0\xE5\xBD\x95\xE6\x9C\xAC\xE6\xAC\xA1\xE6\x9C\x8D\xE8\x8D\xAF"
+#define UI_TXT_MISSED "\xE6\x9C\xAA\xE6\x9C\x8D\xE8\x8D\xAF"
+#define UI_TXT_MISSED_RECORDED "\xE5\xB7\xB2\xE8\xAE\xB0\xE5\xBD\x95\xE6\x9C\xAC\xE6\xAC\xA1\xE6\x9C\x8D\xE8\x8D\xAF"
+#define UI_TXT_LATER "\xE7\xA8\x8D\xE5\x90\x8E"
+#define UI_TXT_AFTER_REMIND "\xE5\xB0\x86\xE5\x9C\xA8"
+#define UI_TXT_AFTER_REMIND_END "\xE5\x88\x86\xE9\x92\x9F\xE5\x90\x8E\xE6\x8F\x90\xE9\x86\x92"
+#define UI_TXT_HOURS "\xE5\xB0\x8F\xE6\x97\xB6"
+#define UI_TXT_MINUTES "\xE5\x88\x86\xE9\x92\x9F"
+#define UI_TXT_SMART_BOX "\xE6\x99\xBA\xE8\x83\xBD\xE8\x8D\xAF\xE7\x9B\x92"
+#define UI_TXT_TODAY_PROGRESS "\xE4\xBB\x8A\xE6\x97\xA5\xE8\xBF\x9B\xE5\xBA\xA6"
+#define UI_TXT_CONFIRM "\xE7\xA1\xAE\xE8\xAE\xA4\xE6\x9C\x8D\xE8\x8D\xAF"
+#define UI_TXT_SNOOZE "\xE7\xA8\x8D\xE5\x90\x8E\xE6\x9C\x8D\xE8\x8D\xAF"
+#define UI_TXT_TAKE_NOW "\xE7\xAB\x8B\xE5\x8D\xB3\xE6\x9C\x8D\xE8\x8D\xAF"
+#define UI_TXT_BACK_HOME "\xE8\xBF\x94\xE5\x9B\x9E\xE9\xA6\x96\xE9\xA1\xB5"
+
+typedef enum {
+    UI_STATE_NORMAL = 0,
+    UI_STATE_LATER,
+    UI_STATE_CONFIRMED,
+    UI_STATE_MISSED
+} UI_State;
+
 static GUI_Page g_Page = PAGE_MAIN;
-static const char* wk[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+static UI_State g_LastState = (UI_State)0xFFu;
+static uint8_t g_NeedFullDraw = 1u;
+static uint8_t g_WifiOnline = 0u;
+static uint8_t g_ForceHome = 0u;
+static const char* wk[7] = {
+    UI_TXT_DAY, UI_TXT_ONE, UI_TXT_TWO, UI_TXT_THREE,
+    UI_TXT_FOUR, UI_TXT_FIVE, UI_TXT_SIX
+};
 
-GUI_Page GUI_GetPage(void){ return g_Page; }
-
-static void Btn(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2,
-                const char* t, uint16_t bg, uint16_t fg)
+GUI_Page GUI_GetPage(void)
 {
-    LCD_Fill(x1, y1, x2, y2, bg);
-    LCD_DrawRect(x1, y1, x2, y2, GRAY);
-    uint16_t tw = strlen(t) * 6;
-    uint16_t cx = x1 + ((x2-x1)-tw)/2;
-    uint16_t cy = y1 + ((y2-y1)-12)/2;
-    LCD_ShowString(cx, cy, (char*)t, fg, bg, 12);
+    return g_Page;
 }
 
-void GUI_ShowMainPage(RTC_Time *t)
+void GUI_SetWiFiOnline(uint8_t online)
 {
-    char b[60];
+    if(g_WifiOnline != online) {
+        g_WifiOnline = online;
+        g_NeedFullDraw = 1u;
+    }
+}
+
+void GUI_ReturnHome(void)
+{
     g_Page = PAGE_MAIN;
-    Medicine *m = PillBox_GetMedicines();
-    uint8_t total = PillBox_GetTotalEnabled();
-    uint8_t taken = PillBox_GetTakenCount();
+    g_ForceHome = 1u;
+    g_NeedFullDraw = 1u;
+    g_LastState = (UI_State)0xFFu;
+}
 
-    /* ????:???????????? (Y?? 30 ? 185) */
-    /* ?????? LCD_Clear,???????????! */
-    LCD_Fill(0, 30, 320, 185, WHITE);
+static void FillRoundRect(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2,
+                          uint16_t r, uint16_t color)
+{
+    LCD_Fill((uint16_t)(x1 + r), y1, (uint16_t)(x2 - r), y2, color);
+    LCD_Fill(x1, (uint16_t)(y1 + r), x2, (uint16_t)(y2 - r), color);
+    LCD_FillCircle((uint16_t)(x1 + r), (uint16_t)(y1 + r), r, color);
+    LCD_FillCircle((uint16_t)(x2 - r), (uint16_t)(y1 + r), r, color);
+    LCD_FillCircle((uint16_t)(x1 + r), (uint16_t)(y2 - r), r, color);
+    LCD_FillCircle((uint16_t)(x2 - r), (uint16_t)(y2 - r), r, color);
+}
 
-    /* top bar */
-    LCD_Fill(0, 0, 320, 30, DARKBLUE);
-    sprintf(b, "%02d-%02d %s", t->month, t->day, wk[t->week]);
-    LCD_ShowString(10, 7, b, WHITE, DARKBLUE, 12);
+static void DrawRoundRect(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2,
+                          uint16_t r, uint16_t color)
+{
+    LCD_DrawLine((uint16_t)(x1 + r), y1, (uint16_t)(x2 - r), y1, color);
+    LCD_DrawLine((uint16_t)(x1 + r), y2, (uint16_t)(x2 - r), y2, color);
+    LCD_DrawLine(x1, (uint16_t)(y1 + r), x1, (uint16_t)(y2 - r), color);
+    LCD_DrawLine(x2, (uint16_t)(y1 + r), x2, (uint16_t)(y2 - r), color);
+}
+
+static void Button(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2,
+                   const char *text, uint16_t bg, uint16_t fg, uint16_t border)
+{
+    FillRoundRect(x1, y1, x2, y2, 11, bg);
+    if(bg != WHITE) {
+        DrawRoundRect(x1, y1, x2, y2, 11, border);
+    }
+    CFont_ShowTextCenter(x1, (uint16_t)(y1 + 10u), x2, text, fg, bg, 16);
+}
+
+static void DrawRemainText(uint16_t x, uint16_t y, int16_t minutes,
+                           uint16_t fg, uint16_t bg)
+{
+    char h[8];
+    char m[8];
+    uint16_t pos = x;
+    int16_t hour;
+    int16_t min;
+
+    if(minutes < 0)minutes = 0;
+    hour = (int16_t)(minutes / 60);
+    min = (int16_t)(minutes % 60);
+
+    sprintf(h, "%d", hour);
+    sprintf(m, "%d", min);
+
+    CFont_ShowText(pos, y, h, fg, bg, 16);
+    pos = (uint16_t)(pos + CFont_TextWidth(h, 16));
+    CFont_ShowText(pos, y, UI_TXT_HOURS, fg, bg, 16);
+    pos = (uint16_t)(pos + CFont_TextWidth(UI_TXT_HOURS, 16));
+    CFont_ShowText(pos, y, m, fg, bg, 16);
+    pos = (uint16_t)(pos + CFont_TextWidth(m, 16));
+    CFont_ShowText(pos, y, UI_TXT_MINUTES, fg, bg, 16);
+}
+
+static void DrawPillIcon(void)
+{
+    FillRoundRect(34, 65, 94, 125, 30, UI_SOFT_BLUE);
+    FillRoundRect(47, 81, 81, 113, 6, WHITE);
+    DrawRoundRect(47, 81, 81, 113, 6, UI_PRIMARY);
+    LCD_DrawLine(64, 82, 64, 113, UI_PRIMARY);
+    LCD_DrawLine(48, 97, 81, 97, UI_PRIMARY);
+    LCD_FillCircle(84, 76, 9, 0x2EBA);
+    LCD_FillCircle(84, 76, 6, WHITE);
+    CFont_ShowTextCenter(34, 128, 94, UI_TXT_SMART_BOX, UI_MUTED, WHITE, 16);
+}
+
+static void DrawMedicineName(uint16_t x, uint16_t y, Medicine *med)
+{
+    if(med == 0)return;
+    if(CFont_CanShowText(med->name)) {
+        CFont_ShowText(x, y, med->name, UI_TEXT, WHITE, 24);
+        return;
+    }
+    if(med->nameGbkLen > 0u && ExtFont_ShowGbkText16(x, y, med->nameGbk,
+                                                     med->nameGbkLen,
+                                                     UI_TEXT, WHITE)) {
+        return;
+    }
+    CFont_ShowText(x, y, UI_TXT_GENERIC_MED, UI_TEXT, WHITE, 24);
+}
+
+static void DrawHeader(RTC_Time *t)
+{
+    char b[16];
+
+    FillRoundRect(9, 10, 311, 40, 9, UI_BAR);
+    sprintf(b, "%02d", t->month);
+    CFont_ShowText(20, 18, b, WHITE, UI_BAR, 16);
+    CFont_ShowText(32, 18, UI_TXT_MONTH, WHITE, UI_BAR, 16);
+    sprintf(b, "%02d", t->day);
+    CFont_ShowText(48, 18, b, WHITE, UI_BAR, 16);
+    CFont_ShowText(60, 18, UI_TXT_DAY, WHITE, UI_BAR, 16);
+    CFont_ShowText(82, 18, UI_TXT_WEEK, WHITE, UI_BAR, 16);
+    CFont_ShowText(98, 18, wk[t->week], WHITE, UI_BAR, 16);
+
+    CFont_ShowText(218, 18, g_WifiOnline ? UI_TXT_WIFI_OK : UI_TXT_WIFI_WAIT,
+                   0xBDF7, UI_BAR, 16);
     sprintf(b, "%02d:%02d", t->hour, t->minute);
-    LCD_ShowString(260, 7, b, WHITE, DARKBLUE, 12);
+    CFont_ShowText(276, 18, b, WHITE, UI_BAR, 16);
+}
 
+static Medicine* FindNextMedicine(RTC_Time *t, int16_t *remainMin)
+{
+    Medicine *m = PillBox_GetMedicines();
+    Medicine *nx = 0;
+    int16_t nowMin = (int16_t)t->hour * 60 + t->minute;
+    int16_t best = 32767;
+    uint8_t i;
+
+    for(i = 0; i < MAX_MEDICINES; i++) {
+        int16_t medMin;
+        int16_t diff;
+        if(!m[i].enabled)continue;
+        medMin = (int16_t)m[i].alarmHour * 60 + m[i].alarmMinute;
+        diff = medMin - nowMin;
+        if(m[i].taken) {
+            diff = (int16_t)(diff + 1440);
+        } else if(diff < 0) {
+            diff = (int16_t)(diff + 1440);
+        }
+        if(diff < best) {
+            best = diff;
+            nx = &m[i];
+        }
+    }
+
+    if(remainMin != 0)*remainMin = best;
+    return nx;
+}
+
+static UI_State GetState(void)
+{
     uint8_t snoozeIdx;
     uint16_t snoozeRemain;
+    uint8_t total;
+    uint8_t taken;
 
-    /* next dose */
-    Medicine *nx = NULL;
-    for(uint8_t i=0; i<MAX_MEDICINES; i++)
-        if(m[i].enabled && !m[i].taken) { nx = &m[i]; break; }
+    if(PillBox_GetState() == STATE_ALARM) {
+        g_ForceHome = 0u;
+        return UI_STATE_NORMAL;
+    }
 
-    if(nx) {
-        LCD_ShowString(90, 45, ">>> NEXT DOSE <<<", GRAY, WHITE, 12);
-        uint16_t nw = strlen(nx->name)*6;
-        LCD_ShowString((320-nw)/2, 70, nx->name, BLACK, WHITE, 12);
-        sprintf(b, "Dose: %s", nx->dose);
-        LCD_ShowString(110, 95, b, DARKBLUE, WHITE, 12);
-
-        int16_t ml = (int16_t)nx->alarmHour*60 + nx->alarmMinute
-                   - ((int16_t)t->hour*60 + t->minute);
-        if(ml > 0) {
-            sprintf(b, "Scheduled: %02d:%02d", nx->alarmHour, nx->alarmMinute);
-            LCD_ShowString(80, 118, b, DARKBLUE, WHITE, 12);
-            sprintf(b, "in %d min", ml);
-            LCD_ShowString(120, 138, b, RED, WHITE, 12);
-        } else {
-            LCD_ShowString(120, 130, "DUE NOW!", RED, WHITE, 12);
-        }
-    } else {
-        LCD_ShowString(110, 80, "ALL DONE!", GREEN, WHITE, 12);
+    if(g_ForceHome) {
+        return UI_STATE_NORMAL;
     }
 
     if(PillBox_GetSnoozeRemaining(&snoozeIdx, &snoozeRemain)) {
-        sprintf(b, "Snooze: %s", m[snoozeIdx].name);
-        LCD_ShowString(80, 145, b, RED, WHITE, 12);
-        sprintf(b, "Remind again in %d min", snoozeRemain);
-        LCD_ShowString(65, 160, b, RED, WHITE, 12);
+        return UI_STATE_LATER;
     }
 
-    /* progress */
-    LCD_DrawRect(30, 172, 290, 183, GRAY);
-    if(total > 0) {
-        uint16_t bw = (uint16_t)((uint32_t)taken*258/total);
-        LCD_Fill(31, 173, 31+bw, 182, (taken==total)?GREEN:LIGHTBLUE);
+    if(PillBox_GetState() == STATE_MISSED) {
+        return UI_STATE_MISSED;
     }
-    sprintf(b, "Taken: %d / %d", taken, total);
-    LCD_ShowString(110, 172, b, DARKBLUE, WHITE, 12);
 
-    /* buttons */
-    LCD_DrawLine(0, 185, 320, 185, GRAY);
-    LCD_Fill(0, 186, 320, 240, LIGHTGRAY);
-    Btn(90, 195, 230, 230, "SETTINGS", BLUE, WHITE);
+    total = PillBox_GetTotalEnabled();
+    taken = PillBox_GetTakenCount();
+    if(total > 0u && taken >= total) {
+        return UI_STATE_CONFIRMED;
+    }
+
+    return UI_STATE_NORMAL;
+}
+
+static void DrawStaticLayout(RTC_Time *t, UI_State state)
+{
+    LCD_Clear(UI_BG);
+    DrawHeader(t);
+    FillRoundRect(13, 50, 307, 178, 15, WHITE);
+    DrawRoundRect(13, 50, 307, 178, 15, UI_BORDER);
+    DrawPillIcon();
+
+    CFont_ShowText(108, 65, UI_TXT_NEXT_DOSE, UI_MUTED, WHITE, 16);
+    CFont_ShowText(34, 150, UI_TXT_TODAY_PROGRESS, UI_MUTED, WHITE, 16);
+
+    if(state == UI_STATE_NORMAL) {
+        Button(22, 190, 147, 226, UI_TXT_CONFIRM, UI_PRIMARY, WHITE, UI_PRIMARY);
+        Button(164, 190, 302, 226, UI_TXT_SNOOZE, WHITE, UI_TEXT, UI_BUTTON_BORDER);
+    } else if(state == UI_STATE_LATER) {
+        Button(22, 190, 147, 226, UI_TXT_TAKE_NOW, UI_ORANGE, WHITE, UI_ORANGE);
+        Button(164, 190, 302, 226, UI_TXT_BACK_HOME, WHITE, UI_TEXT, UI_BUTTON_BORDER);
+    } else {
+        Button(22, 190, 147, 226, UI_TXT_CONFIRM,
+               state == UI_STATE_MISSED ? UI_ORANGE : UI_GREEN,
+               WHITE,
+               state == UI_STATE_MISSED ? UI_ORANGE : UI_GREEN);
+        Button(164, 190, 302, 226, UI_TXT_BACK_HOME, WHITE, UI_TEXT, UI_BUTTON_BORDER);
+    }
+}
+
+static void DrawDynamicContent(RTC_Time *t, UI_State state)
+{
+    char b[32];
+    Medicine *nx;
+    int16_t remain = 0;
+    uint8_t total;
+    uint8_t taken;
+    uint8_t snoozeIdx;
+    uint16_t snoozeRemain;
+    uint16_t color = UI_PRIMARY;
+    uint16_t boxBg = 0xF79F;
+    uint16_t progress;
+
+    nx = FindNextMedicine(t, &remain);
+    total = PillBox_GetTotalEnabled();
+    taken = PillBox_GetTakenCount();
+
+    LCD_Fill(96, 82, 212, 140, WHITE);
+    if(nx != 0) {
+        DrawMedicineName(108, 86, nx);
+        CFont_ShowText(109, 120, UI_TXT_DOSE, UI_TEXT, WHITE, 16);
+        CFont_ShowText(157, 120, nx->dose, UI_TEXT, WHITE, 16);
+    }
+
+    if(state == UI_STATE_LATER) {
+        color = UI_ORANGE;
+        boxBg = UI_ORANGE_BG;
+    } else if(state == UI_STATE_CONFIRMED) {
+        color = UI_GREEN;
+        boxBg = UI_GREEN_BG;
+    } else if(state == UI_STATE_MISSED) {
+        color = UI_ORANGE;
+        boxBg = UI_ORANGE_BG;
+    }
+
+    FillRoundRect(202, 69, 300, 117, 12, boxBg);
+    DrawRoundRect(202, 69, 300, 117, 12,
+                  state == UI_STATE_LATER || state == UI_STATE_MISSED ? 0xF5CC : (state == UI_STATE_CONFIRMED ? 0xA7B4 : 0xCF3F));
+
+    if(state == UI_STATE_CONFIRMED) {
+        CFont_ShowTextCenter(202, 77, 300, UI_TXT_STATUS, UI_TEXT, boxBg, 16);
+        CFont_ShowTextCenter(202, 94, 300, UI_TXT_TAKEN_DONE, color, boxBg, 16);
+        LCD_Fill(96, 139, 260, 157, WHITE);
+        CFont_ShowText(96, 140, UI_TXT_RECORDED, color, WHITE, 16);
+    } else if(state == UI_STATE_MISSED) {
+        CFont_ShowTextCenter(202, 77, 300, UI_TXT_STATUS, UI_TEXT, boxBg, 16);
+        CFont_ShowTextCenter(202, 94, 300, UI_TXT_MISSED, color, boxBg, 16);
+        LCD_Fill(96, 139, 260, 157, WHITE);
+        CFont_ShowText(96, 140, UI_TXT_MISSED_RECORDED, color, WHITE, 16);
+    } else if(state == UI_STATE_LATER) {
+        if(PillBox_GetSnoozeRemaining(&snoozeIdx, &snoozeRemain)) {
+            remain = (int16_t)snoozeRemain;
+        } else {
+            remain = 10;
+        }
+        CFont_ShowTextCenter(202, 77, 300, UI_TXT_LATER, UI_TEXT, boxBg, 16);
+        DrawRemainText(207, 94, remain, color, boxBg);
+        LCD_Fill(96, 139, 260, 157, WHITE);
+        CFont_ShowText(96, 140, UI_TXT_AFTER_REMIND, color, WHITE, 16);
+        sprintf(b, "%d", remain);
+        CFont_ShowText(144, 140, b, color, WHITE, 16);
+        CFont_ShowText((uint16_t)(144u + CFont_TextWidth(b, 16)), 140,
+                       UI_TXT_AFTER_REMIND_END, color, WHITE, 16);
+    } else {
+        CFont_ShowTextCenter(202, 77, 300, UI_TXT_REMAIN, UI_TEXT, boxBg, 16);
+        DrawRemainText(207, 94, remain, color, boxBg);
+    }
+
+    sprintf(b, "%u / %u", taken, total);
+    LCD_Fill(262, 153, 300, 168, WHITE);
+    CFont_ShowText(270, 150, b, color, WHITE, 16);
+    FillRoundRect(23, 171, 297, 176, 3, UI_TRACK);
+    if(total > 0u) {
+        progress = (uint16_t)((uint32_t)taken * 274u / total);
+        if(progress < 28u && taken > 0u)progress = 28u;
+        if(state == UI_STATE_NORMAL && progress < 28u)progress = 28u;
+        FillRoundRect(23, 171, (uint16_t)(23u + progress), 176, 3, color);
+    }
+}
+
+void GUI_ShowMainPage(RTC_Time *time)
+{
+    UI_State state = GetState();
+    g_Page = PAGE_MAIN;
+
+    if(g_NeedFullDraw || state != g_LastState) {
+        DrawStaticLayout(time, state);
+        g_LastState = state;
+        g_NeedFullDraw = 0u;
+    } else {
+        DrawHeader(time);
+    }
+
+    DrawDynamicContent(time, state);
 }
 
 void GUI_ShowAlarmAlert(Medicine *med)
 {
-    char b[48];
+    RTC_Time now;
+    (void)med;
+    RTC_GetTime(&now);
     g_Page = PAGE_ALARM_ALERT;
-    LCD_Clear(WHITE);
-    LCD_Fill(0, 0, 320, 40, RED);
-    LCD_ShowString(50, 12, "!!! TIME TO TAKE MEDS !!!", WHITE, RED, 12);
-
-    uint16_t nw = strlen(med->name)*6;
-    LCD_ShowString((320-nw)/2, 65, med->name, BLACK, WHITE, 12);
-    sprintf(b, "Dose: %s", med->dose);
-    LCD_ShowString(110, 95, b, DARKBLUE, WHITE, 12);
-    sprintf(b, "Scheduled: %02d:%02d", med->alarmHour, med->alarmMinute);
-    LCD_ShowString(80, 120, b, DARKBLUE, WHITE, 12);
-    LCD_ShowString(40, 150, "Please take your medicine!", RED, WHITE, 12);
-
-    LCD_DrawLine(0, 185, 320, 185, GRAY);
-    LCD_Fill(0, 186, 320, 240, LIGHTGRAY);
-    Btn(20, 195, 150, 230, "SNOOZE", RED, WHITE);
-    Btn(170, 195, 300, 230, "TAKEN", GREEN, WHITE);
+    g_ForceHome = 0u;
+    if(g_NeedFullDraw || g_LastState != UI_STATE_NORMAL) {
+        DrawStaticLayout(&now, UI_STATE_NORMAL);
+        g_LastState = UI_STATE_NORMAL;
+        g_NeedFullDraw = 0u;
+    }
+    DrawDynamicContent(&now, UI_STATE_NORMAL);
 }
 
-void GUI_ShowMedSetting(Medicine *meds, uint8_t n, uint8_t sel)
+void GUI_ShowMedSetting(Medicine *meds, uint8_t count, uint8_t selected)
 {
-    char b[48];
+    RTC_Time now;
+    (void)meds;
+    (void)count;
+    (void)selected;
+    RTC_GetTime(&now);
     g_Page = PAGE_MED_SETTING;
-    LCD_Clear(WHITE);
-    LCD_Fill(0, 0, 320, 30, DARKBLUE);
-    LCD_ShowString(100, 7, "Alarm Settings", WHITE, DARKBLUE, 12);
+    g_NeedFullDraw = 1u;
+    GUI_ShowMainPage(&now);
+}
 
-    for(uint8_t i=0; i<n; i++) {
-        uint16_t y = 35 + i*45;
-        uint16_t bg = (i==sel)?LIGHTBLUE:WHITE;
-        LCD_Fill(0, y, 320, y+43, bg);
+static uint8_t GUI_CheckButtonDirect(int16_t x, int16_t y)
+{
+    if(x < 0 || y < 0 || x >= 320 || y >= 240)return BTN_NONE;
 
-        sprintf(b, "%d. %-8s %02d:%02d %s", i+1, meds[i].name, meds[i].alarmHour, meds[i].alarmMinute, meds[i].dose);
-        LCD_ShowString(10, y+15, b, BLACK, bg, 12);
-
-        Btn(180, y+10, 210, y+35, "+H", (i==sel)?BLUE:GRAY, WHITE);
-        Btn(220, y+10, 250, y+35, "+M", (i==sel)?BLUE:GRAY, WHITE);
-        LCD_ShowString(265, y+15, meds[i].enabled?"[ON]":"[OFF]",
-                       meds[i].enabled?GREEN:RED, bg, 12);
+    if(x >= 22 && x <= 147 && y >= 190 && y <= 226) {
+        g_NeedFullDraw = 1u;
+        return BTN_CONFIRM_TAKEN;
+    }
+    if(x >= 164 && x <= 302 && y >= 190 && y <= 226) {
+        g_NeedFullDraw = 1u;
+        return BTN_SNOOZE;
     }
 
-    LCD_Fill(0, 210, 320, 240, LIGHTGRAY);
-    LCD_ShowString(70, 220, "Tap top bar to EXIT", DARKBLUE, LIGHTGRAY, 12);
+    return BTN_NONE;
+}
+
+static uint8_t GUI_CheckAlarmTouch(uint16_t x, uint16_t y)
+{
+    /*
+     * Alarm page raw touch calibration on the real board:
+     * - Confirm button: measured around X=205..228, Y=164..165.
+     * - The two bottom buttons are separated mainly by raw Y after the
+     *   LCD/touch rotation, so do not use the generic transform here.
+     */
+    if(x >= 140u && x <= 300u && y >= 125u && y <= 225u) {
+        g_NeedFullDraw = 1u;
+        return BTN_CONFIRM_TAKEN;
+    }
+
+    if(x >= 140u && x <= 300u && y >= 35u && y < 125u) {
+        g_NeedFullDraw = 1u;
+        return BTN_SNOOZE;
+    }
+
+    return BTN_NONE;
+}
+
+static uint8_t GUI_CheckResultPageTouch(uint16_t x, uint16_t y)
+{
+    uint8_t btn;
+
+    /*
+     * Measured on the result page when pressing "return home":
+     * around X=272, Y=078.
+     * The right-side button maps mainly to the smaller raw-Y area on
+     * this panel, so keep the raw-Y check wide enough for the snooze
+     * result page too.
+     */
+    if(y <= 170u) {
+        g_NeedFullDraw = 1u;
+        return BTN_BACK;
+    }
+
+    btn = GUI_CheckButtonDirect((int16_t)x, (int16_t)y);
+    if(btn == BTN_SNOOZE)return BTN_BACK;
+    btn = GUI_CheckButtonDirect((int16_t)(319 - (int16_t)x), (int16_t)y);
+    if(btn == BTN_SNOOZE)return BTN_BACK;
+    btn = GUI_CheckButtonDirect((int16_t)x, (int16_t)(239 - (int16_t)y));
+    if(btn == BTN_SNOOZE)return BTN_BACK;
+    btn = GUI_CheckButtonDirect((int16_t)(319 - (int16_t)x), (int16_t)(239 - (int16_t)y));
+    if(btn == BTN_SNOOZE)return BTN_BACK;
+    btn = GUI_CheckButtonDirect((int16_t)y, (int16_t)x);
+    if(btn == BTN_SNOOZE)return BTN_BACK;
+    btn = GUI_CheckButtonDirect((int16_t)(319 - (int16_t)y), (int16_t)x);
+    if(btn == BTN_SNOOZE)return BTN_BACK;
+    btn = GUI_CheckButtonDirect((int16_t)y, (int16_t)(239 - (int16_t)x));
+    if(btn == BTN_SNOOZE)return BTN_BACK;
+    btn = GUI_CheckButtonDirect((int16_t)(319 - (int16_t)y), (int16_t)(239 - (int16_t)x));
+    if(btn == BTN_SNOOZE)return BTN_BACK;
+
+    return BTN_NONE;
 }
 
 uint8_t GUI_CheckButton(uint16_t x, uint16_t y)
 {
-    Medicine *meds = PillBox_GetMedicines();
+    uint8_t btn;
+
     switch(g_Page) {
-    case PAGE_MAIN:
-        if(y<=30 || (x>=90 && x<=230 && y>=195 && y<=230)) {
-            g_Page=PAGE_MED_SETTING;
-            return BTN_SET_MEDS;
-        }
-        break;
     case PAGE_ALARM_ALERT:
-        if(x>=20 && x<=150 && y>=195 && y<=230) {
-            g_Page=PAGE_MAIN;
-            return BTN_SNOOZE;
+        btn = GUI_CheckAlarmTouch(x, y);
+        if(btn != BTN_NONE)return btn;
+        break;
+    case PAGE_MAIN:
+        if(GetState() != UI_STATE_NORMAL) {
+            btn = GUI_CheckResultPageTouch(x, y);
+            if(btn != BTN_NONE)return btn;
+            return BTN_NONE;
         }
-        if(x>=170 && x<=300 && y>=195 && y<=230) {
-            g_Page=PAGE_MAIN;
-            return BTN_CONFIRM_TAKEN;
-        }
+        btn = GUI_CheckButtonDirect((int16_t)x, (int16_t)y);
+        if(btn != BTN_NONE)return btn;
+        btn = GUI_CheckButtonDirect((int16_t)(319 - (int16_t)x), (int16_t)y);
+        if(btn != BTN_NONE)return btn;
+        btn = GUI_CheckButtonDirect((int16_t)x, (int16_t)(239 - (int16_t)y));
+        if(btn != BTN_NONE)return btn;
+        btn = GUI_CheckButtonDirect((int16_t)(319 - (int16_t)x), (int16_t)(239 - (int16_t)y));
+        if(btn != BTN_NONE)return btn;
+        btn = GUI_CheckButtonDirect((int16_t)y, (int16_t)x);
+        if(btn != BTN_NONE)return btn;
+        btn = GUI_CheckButtonDirect((int16_t)(319 - (int16_t)y), (int16_t)x);
+        if(btn != BTN_NONE)return btn;
+        btn = GUI_CheckButtonDirect((int16_t)y, (int16_t)(239 - (int16_t)x));
+        if(btn != BTN_NONE)return btn;
+        btn = GUI_CheckButtonDirect((int16_t)(319 - (int16_t)y), (int16_t)(239 - (int16_t)x));
+        if(btn != BTN_NONE)return btn;
         break;
     case PAGE_MED_SETTING:
-        if(y<=30 || y>=210) { g_Page=PAGE_MAIN; return BTN_BACK; }
-        for(uint8_t i=0; i<MAX_MEDICINES; i++) {
-            uint16_t iy = 35 + i*45;
-            if(y>=iy && y<=iy+43) {
-                if(x>=265) {
-                    meds[i].enabled = !meds[i].enabled;
-                    PillBox_SetMedicine(i, meds[i].name, meds[i].alarmHour, meds[i].alarmMinute, meds[i].enabled);
-                    return BTN_TOGGLE_ENABLE;
-                }
-                if(x>=180 && x<=210) {
-                    meds[i].alarmHour = (meds[i].alarmHour+1)%24;
-                    PillBox_SetMedicine(i, meds[i].name, meds[i].alarmHour, meds[i].alarmMinute, meds[i].enabled);
-                    return BTN_HOUR_UP;
-                }
-                if(x>=220 && x<=250) {
-                    meds[i].alarmMinute = (meds[i].alarmMinute+5)%60;
-                    PillBox_SetMedicine(i, meds[i].name, meds[i].alarmHour, meds[i].alarmMinute, meds[i].enabled);
-                    return BTN_MIN_UP;
-                }
-                return BTN_SELECT_NEXT;
-            }
-        }
+        g_Page = PAGE_MAIN;
+        g_NeedFullDraw = 1u;
+        return BTN_BACK;
+    default:
         break;
     }
+
     return BTN_NONE;
 }
 
-void GUI_Init(void){ g_Page = PAGE_MAIN; }
+void GUI_Init(void)
+{
+    g_Page = PAGE_MAIN;
+    g_LastState = (UI_State)0xFFu;
+    g_NeedFullDraw = 1u;
+    g_WifiOnline = 0u;
+}

@@ -462,6 +462,31 @@
               <FileType>1</FileType>
               <FilePath>.\BSP\bsp_ir.c</FilePath>
             </File>
+            <File>
+              <FileName>bsp_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\BSP\bsp_wifi.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_sntp.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\BSP\bsp_sntp.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_cfont.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\BSP\bsp_cfont.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_spi_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\BSP\bsp_spi_flash.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_extfont.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\BSP\bsp_extfont.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -531,6 +556,11 @@
               <FileName>stm32f10x_flash.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Libraries\StdPeriph\src\stm32f10x_flash.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f10x_usart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Libraries\StdPeriph\src\stm32f10x_usart.c</FilePath>
             </File>
           </Files>
         </Group>

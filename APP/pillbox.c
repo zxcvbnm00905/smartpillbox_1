@@ -11,10 +11,10 @@
 #define SNOOZE_MINUTES  5
 
 static Medicine g_Medicines[MAX_MEDICINES] = {
-    {"Amoxicillin",  7,30,1,0,"1 tab"},
-    {"Cold Medicine",12,30,1,0,"2 tabs"},
-    {"Vitamin C",   18,30,1,0,"1 tab"},
-    {"BP Med",      21, 0,0,0,"1 tab"},
+    {"Slot0", {0}, 0, 8, 0,0,0,"1\xE7\x89\x87"},
+    {"Slot1", {0}, 0, 8, 0,0,0,"1\xE7\x89\x87"},
+    {"Slot2", {0}, 0, 8, 0,0,0,"1\xE7\x89\x87"},
+    {"Slot3", {0}, 0, 8, 0,0,0,"1\xE7\x89\x87"},
 };
 
 static PillBox_State g_State = STATE_NORMAL;
@@ -28,6 +28,7 @@ static uint8_t  g_AlarmElapsedSec = 0;
 static uint8_t  g_AlarmLastSecond = 0xFF;
 static uint8_t  g_SnoozeIdx = 0xFF;
 static uint32_t g_SnoozeDueMinute = 0;
+static uint8_t  g_TakenDay[MAX_MEDICINES] = {0xFF, 0xFF, 0xFF, 0xFF};
 
 
 static uint32_t PillBox_NowMinute(RTC_Time *time)
@@ -48,6 +49,29 @@ static void PillBox_StartAlarm(uint8_t idx, RTC_Time *now)
     BEEP_ON();
     LED_ON();
 }
+
+static void PillBox_MarkMissed(void)
+{
+    if(g_TriggeredIdx < MAX_MEDICINES) {
+        g_Medicines[g_TriggeredIdx].taken = 0;
+    }
+
+    BEEP_OFF();
+    LED_OFF();
+    g_AlarmElapsedSec = 0;
+    g_AlarmLastSecond = 0xFF;
+    g_State = STATE_MISSED;
+}
+
+static void PillBox_RefreshTakenForDay(uint8_t day)
+{
+    for(uint8_t i=0;i<MAX_MEDICINES;i++){
+        if(g_TakenDay[i] != day){
+            g_Medicines[i].taken = 0;
+        }
+    }
+}
+
 void PillBox_Init(void)
 {
     g_State = STATE_NORMAL;
@@ -57,6 +81,7 @@ void PillBox_Init(void)
     g_SnoozeIdx = 0xFF;
     g_SnoozeDueMinute = 0;
     for(uint8_t i=0;i<MAX_MEDICINES;i++){
+        g_TakenDay[i] = 0xFF;
         BSP_RTC_Alarm(i,g_Medicines[i].alarmHour,
                       g_Medicines[i].alarmMinute,g_Medicines[i].enabled);
         g_Medicines[i].taken=0;
@@ -71,16 +96,34 @@ uint8_t PillBox_GetMedicineCount(void){return MAX_MEDICINES;}
 
 void PillBox_SetMedicine(uint8_t idx,const char*name,uint8_t h,uint8_t m,uint8_t en)
 {
+    uint8_t samePlan;
+
     if(idx>=MAX_MEDICINES)return;
+
+    samePlan = (g_Medicines[idx].enabled == en &&
+                g_Medicines[idx].alarmHour == h &&
+                g_Medicines[idx].alarmMinute == m &&
+                strncmp(g_Medicines[idx].name, name, MED_NAME_LEN) == 0);
+
     strncpy(g_Medicines[idx].name,name,MED_NAME_LEN-1);
     g_Medicines[idx].name[MED_NAME_LEN-1]='\0';
+    if(!samePlan || !en){
+        g_Medicines[idx].nameGbkLen=0;
+    }
     g_Medicines[idx].alarmHour=h;
     g_Medicines[idx].alarmMinute=m;
     g_Medicines[idx].enabled=en;
-    g_Medicines[idx].taken=0;
+    if(!samePlan || !en){
+        g_Medicines[idx].taken=0;
+        g_TakenDay[idx]=0xFF;
+    }
     if(g_SnoozeIdx == idx){
         g_SnoozeIdx=0xFF;
         g_SnoozeDueMinute=0;
+    }
+    if(g_TriggeredIdx == idx && g_State == STATE_MISSED){
+        g_TriggeredIdx=0xFF;
+        g_State=STATE_NORMAL;
     }
     if(g_LastAlarmIdx == idx){
         g_LastAlarmIdx=0xFF;
@@ -93,7 +136,20 @@ void PillBox_SetMedicine(uint8_t idx,const char*name,uint8_t h,uint8_t m,uint8_t
     BSP_RTC_Alarm(idx,h,m,en);
 }
 
+void PillBox_SetMedicineGbkName(uint8_t idx,const uint8_t *gbk,uint8_t len)
+{
+    uint8_t i;
+    if(idx>=MAX_MEDICINES || gbk==0)return;
+    if(len > MED_GBK_NAME_LEN)len = MED_GBK_NAME_LEN;
+    if((len & 1u) != 0u)len--;
+    for(i=0;i<len;i++){
+        g_Medicines[idx].nameGbk[i]=gbk[i];
+    }
+    g_Medicines[idx].nameGbkLen=len;
+}
+
 uint8_t PillBox_GetTakenCount(void){
+    RTC_Time now;RTC_GetTime(&now);PillBox_RefreshTakenForDay(now.day);
     uint8_t c=0;for(uint8_t i=0;i<MAX_MEDICINES;i++)
         if(g_Medicines[i].enabled&&g_Medicines[i].taken)c++;return c;
 }
@@ -105,8 +161,13 @@ uint8_t PillBox_GetTotalEnabled(void){
 
 void PillBox_ConfirmTaken(void)
 {
-    if(g_State==STATE_ALARM&&g_TriggeredIdx<MAX_MEDICINES)
+    RTC_Time now;
+
+    if(g_State==STATE_ALARM&&g_TriggeredIdx<MAX_MEDICINES){
+        RTC_GetTime(&now);
         g_Medicines[g_TriggeredIdx].taken=1;
+        g_TakenDay[g_TriggeredIdx]=now.day;
+    }
     BEEP_OFF();LED_OFF();
     g_SnoozeIdx=0xFF;g_SnoozeDueMinute=0;g_AlarmElapsedSec=0;g_AlarmLastSecond=0xFF;g_TriggeredIdx=0xFF;g_State=STATE_NORMAL;
 }
@@ -127,23 +188,43 @@ void PillBox_Snooze(void)
 
 void PillBox_ResetDaily(void)
 {
-    for(uint8_t i=0;i<MAX_MEDICINES;i++)g_Medicines[i].taken=0;
+    for(uint8_t i=0;i<MAX_MEDICINES;i++){
+        g_Medicines[i].taken=0;
+        g_TakenDay[i]=0xFF;
+    }
 }
 
 void PillBox_GetNextDoseString(char*buf)
 {
     RTC_Time now;RTC_GetTime(&now);
-    int16_t minDiff=9999;uint8_t ni=0,found=0;
+    PillBox_RefreshTakenForDay(now.day);
+    int16_t minDiff=32767;uint8_t ni=0,found=0,enabledCount=0;
+    int16_t nm=(int16_t)now.hour*60+now.minute;
     for(uint8_t i=0;i<MAX_MEDICINES;i++){
         if(!g_Medicines[i].enabled)continue;
+        enabledCount++;
         int16_t am=(int16_t)g_Medicines[i].alarmHour*60+g_Medicines[i].alarmMinute;
-        int16_t nm=(int16_t)now.hour*60+now.minute;
         int16_t diff=am-nm;
-        if(diff>0&&diff<minDiff){minDiff=diff;ni=i;found=1;}
+        if(g_Medicines[i].taken){
+            if(diff<=0)diff+=1440;
+            else diff+=1440;
+        }else if(diff<0)diff+=1440;
+        if(diff<minDiff){minDiff=diff;ni=i;found=1;}
+    }
+    if(!found && enabledCount > 0){
+        for(uint8_t i=0;i<MAX_MEDICINES;i++){
+            if(g_Medicines[i].enabled){
+                int16_t am=(int16_t)g_Medicines[i].alarmHour*60+g_Medicines[i].alarmMinute;
+                int16_t diff=am-nm;
+                if(diff<=0)diff+=1440;
+                minDiff=diff;ni=i;found=1;
+                break;
+            }
+        }
     }
     if(found)sprintf(buf,"Next: %s %02d:%02d",
                      g_Medicines[ni].name,g_Medicines[ni].alarmHour,g_Medicines[ni].alarmMinute);
-    else sprintf(buf,"All done for today!");
+    else sprintf(buf,"No plan");
 }
 
 
@@ -169,6 +250,7 @@ uint8_t PillBox_GetSnoozeRemaining(uint8_t *idx, uint16_t *remainMin)
 void PillBox_Process(void)
 {
     RTC_Time now;RTC_GetTime(&now);
+    PillBox_RefreshTakenForDay(now.day);
     if(g_LastDay==0xFF)g_LastDay=now.day;
     if(now.day!=g_LastDay){
         PillBox_ResetDaily();
@@ -177,6 +259,8 @@ void PillBox_Process(void)
         g_LastAlarmDay=0xFF;
         g_LastAlarmHour=0xFF;
         g_LastAlarmMinute=0xFF;
+        g_TriggeredIdx=0xFF;
+        g_State=STATE_NORMAL;
     }
 
     switch(g_State){
@@ -229,12 +313,7 @@ void PillBox_Process(void)
         if(g_AlarmElapsedSec >= 10 ||
            now.hour != g_LastAlarmHour ||
            now.minute != g_LastAlarmMinute){
-            BEEP_OFF();
-            LED_OFF();
-            g_State = STATE_NORMAL;
-            g_TriggeredIdx = 0xFF;
-            g_AlarmElapsedSec = 0;
-            g_AlarmLastSecond = 0xFF;
+            PillBox_MarkMissed();
             break;
         }
 
@@ -247,6 +326,7 @@ void PillBox_Process(void)
         }
         break;
     }
+    case STATE_MISSED:break;
     case STATE_SETTING:break;
     }
 }
